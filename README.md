@@ -9,3 +9,7 @@ When you try to upload a new sketch to your ESP32 and it fails to connect to you
 - Hold-down the “BOOT” button in your ESP32 board
 - Press the “Upload” button in the Arduino IDE to upload a new sketch
 - After you see the  “Connecting….” message in your Arduino IDE, release the finger from the “BOOT” button
+
+
+## Pin layout
+![](ESP32-DOIT-DEVKIT-V1-Board-Pinout-36-GPIOs-updated.jpg)
