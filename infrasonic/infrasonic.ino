@@ -62,6 +62,7 @@ const int SOUND_ANALOG_READ = 34;
 float timeKeeper;
 float samplingTime = 500;
 float duration = 4000000;
+int fileNumber = 0;
 
 
 const char* ssid = "infrasonics";
@@ -70,14 +71,10 @@ const char* host = "esp32fs";
 WebServer server(80);
 
 
-int fileNumber = 0;
 
 
 
-void setup(void) {
-
-   
-  
+void setup(void) {    
   //INIT ONBOAD LED and START THE INTIAL SEQUENCE
   pinMode(LED_BUILTIN, OUTPUT);
   ledDanceSequence();
@@ -98,13 +95,12 @@ void setup(void) {
     while(file){
         String fileName = file.name();
         size_t fileSize = file.size();
-        DBG_OUTPUT_PORT.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());
-        
+        DBG_OUTPUT_PORT.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());        
         String xval = splitString(fileName, '_', 1);
         String xval2 = splitString(xval, '.', 0);        
         String nextFileNumberStr = String(xval2.c_str());
-        int nextFileNumber = nextFileNumberStr.toInt();        
-        if (nextFileNumber > fileNumber){          
+        int nextFileNumber = nextFileNumberStr.toInt();
+        if (nextFileNumber > fileNumber){
           fileNumber = nextFileNumber;
         }        
         file = root.openNextFile();
@@ -159,8 +155,10 @@ void setup(void) {
   });
   server.begin();
   DBG_OUTPUT_PORT.println("HTTP server started");
-  ledDanceSequence();
 
+
+  //led dance for the end of setup
+  ledDanceSequence();
 }
 
 void loop(void) {
@@ -445,7 +443,6 @@ String splitString(String data, char separator, int index)
     
     if(found > index){
       String x = data.substring(strIndex[0], strIndex[1]);
-      DBG_OUTPUT_PORT.println(x);
       return x;
     }else{
       return String("");  
