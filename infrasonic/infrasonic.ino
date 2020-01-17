@@ -424,9 +424,10 @@ void handleFileList() {
   output += "]";
   server.send(200, "text/json", output);
 }
-/*###################################################### HANDLE SERVER FUNCTIONS ############################################################*/
+/*###################################################### END - HANDLE SERVER FUNCTIONS ############################################################*/
 
 
+/*###################################################### STRING UTILITY FUNCTIONS ############################################################*/
 String splitString(String data, char separator, int index)
 {
     int found = 0;
@@ -448,3 +449,5 @@ String splitString(String data, char separator, int index)
       return String("");  
     }    
 }
+
+/*###################################################### END STRING UTILITY FUNCTIONS ############################################################*/
