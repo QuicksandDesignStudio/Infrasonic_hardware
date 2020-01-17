@@ -70,7 +70,7 @@ const char* host = "esp32fs";
 WebServer server(80);
 
 
-long randNumber = 5000;
+long fileNumber = 0;
 
 
 
@@ -91,20 +91,20 @@ void setup(void) {
   //formatted using a computer format
   //if (FORMAT_FILESYSTEM) FILESYSTEM.format();
   
-  FILESYSTEM.begin();
-  {
-      File root = FILESYSTEM.open("/");
-      File file = root.openNextFile();
-      while(file){
-          String fileName = file.name();
-          size_t fileSize = file.size();
-          DBG_OUTPUT_PORT.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());
-          file = root.openNextFile();
-      }
-      DBG_OUTPUT_PORT.printf("\n");
+  if(FILESYSTEM.begin()){
+    DBG_OUTPUT_PORT.printf("File system has started");
+    File root = FILESYSTEM.open("/");
+    File file = root.openNextFile();
+    while(file){
+        String fileName = file.name();
+        size_t fileSize = file.size();
+        DBG_OUTPUT_PORT.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());
+        file = root.openNextFile();
+    }
+    DBG_OUTPUT_PORT.printf("\n");  
+  }else{
+    DBG_OUTPUT_PORT.printf("ERROR: COULDNT START FILE SYSTEM\n");  
   }
-
-
 
 
   //SETUP WIFI AP
@@ -157,7 +157,6 @@ void loop(void) {
 
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
   const unsigned long fiveMinutes = 5 * 60 * 1000UL;
-  //const unsigned long fiveMinutes = 1000;
   static unsigned long lastSampleTime = 0 - fiveMinutes;
   unsigned long now = millis();
   if (now - lastSampleTime >= fiveMinutes)
@@ -182,16 +181,17 @@ void loop(void) {
   ledOn();
 
   
-  String filePre = "sample_";
-  String filePost = ".xml";
+  String filePre = "/sample_";
+  String filePost = ".js";
     
-  randNumber = randNumber + 1;
-  String fileName = filePre + randNumber + filePost;
+  fileNumber  = fileNumber + 1;
+  String fileName = filePre + fileNumber + filePost;
   DBG_OUTPUT_PORT.println("file name:");
   DBG_OUTPUT_PORT.println(fileName);
   
 
   String csv_data = "";
+  String csv_time = "";
 
   //read the value in a forlopp with the delay required by the sample rate
 
@@ -200,35 +200,43 @@ void loop(void) {
   int value = 0;
   int counter = 0;
   DBG_OUTPUT_PORT.println(duration/samplingTime);
-
+  bool first = true;
+  
   while(1){
     currentTime = micros();
     if((currentTime - timeKeeper) > samplingTime) {
       timeKeeper = micros();
       value = analogRead(SOUND_ANALOG_READ);
-      csv_data = csv_data + "," + value;
+      if(first){
+        csv_data = value;
+        csv_time = timeKeeper;
+        first = false;
+      }else{
+        csv_data = csv_data + "," + value;
+        csv_time = csv_time+ "," + timeKeeper;        
+      }
       counter = counter + 1;      
     }
     
-    DBG_OUTPUT_PORT.println(counter);
+    //DBG_OUTPUT_PORT.println(counter);
     
     if(counter >= duration/samplingTime){
-      DBG_OUTPUT_PORT.println(counter);
+      //DBG_OUTPUT_PORT.println(counter);
       break;
     }
     
   }
   
 
-  String XML_DATA = "<data>";
-  XML_DATA.concat("<sample>");
-  XML_DATA.concat(csv_data);
-  XML_DATA.concat("</sample>");
-  XML_DATA.concat("</data>");
-
-  DBG_OUTPUT_PORT.println(XML_DATA);
+    String json = "{";
+    json += "\"data\": [" + csv_data+"]";
+    json += ", \"time\": [" + csv_time+"]";
+    json += "}";
+    
+    
+  //DBG_OUTPUT_PORT.println(json);
   
-  createFile(fileName, XML_DATA);  
+  createFile(fileName, json);  
   
   
   ledOff();
@@ -264,6 +272,8 @@ void ledOff(){
 void createFile(String path, String data) {
   if (exists(path)) {
     DBG_OUTPUT_PORT.println("File already exists");    
+
+/*
     File file = FILESYSTEM.open(path, "r");
     DBG_OUTPUT_PORT.println(file);    
     while (file.available()) { 
@@ -273,6 +283,7 @@ void createFile(String path, String data) {
     }
     DBG_OUTPUT_PORT.println("close file");
     file.close();
+*/
     
   }else{
     DBG_OUTPUT_PORT.println("open for writing");
@@ -386,22 +397,21 @@ void handleFileDelete() {
 
 
 void handleFileList() {
-  if (!server.hasArg("dir")) {
-    server.send(500, "text/plain", "BAD ARGS");
-    return;
-  }
 
-  String path = server.arg("dir");
-  DBG_OUTPUT_PORT.println("handleFileList: " + path);
+  DBG_OUTPUT_PORT.println("handleFileList: /");
 
 
-  File root = FILESYSTEM.open(path);
-  path = String();
+  File root = FILESYSTEM.open("/");
+  DBG_OUTPUT_PORT.println(root);
 
   String output = "[";
   if(root.isDirectory()){
+    DBG_OUTPUT_PORT.println("Root is directory");
       File file = root.openNextFile();
+      DBG_OUTPUT_PORT.println("next file");
+      DBG_OUTPUT_PORT.println(file);
       while(file){
+          DBG_OUTPUT_PORT.println("inside while");
           if (output != "[") {
             output += ',';
           }
@@ -412,6 +422,9 @@ void handleFileList() {
           output += "\"}";
           file = root.openNextFile();
       }
+      DBG_OUTPUT_PORT.println("end file while");
+  }else{
+    DBG_OUTPUT_PORT.println("Root is not a directory??");
   }
   output += "]";
   server.send(200, "text/json", output);
