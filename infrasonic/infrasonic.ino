@@ -156,7 +156,8 @@ void setup(void) {
 void loop(void) {
 
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
-  const unsigned long fiveMinutes = 5 * 60 * 1000UL;
+  //const unsigned long fiveMinutes = 5 * 60 * 1000UL;
+  const unsigned long fiveMinutes = 10000;
   static unsigned long lastSampleTime = 0 - fiveMinutes;
   unsigned long now = millis();
   if (now - lastSampleTime >= fiveMinutes)
@@ -271,20 +272,7 @@ void ledOff(){
 //format bytes
 void createFile(String path, String data) {
   if (exists(path)) {
-    DBG_OUTPUT_PORT.println("File already exists");    
-
-/*
-    File file = FILESYSTEM.open(path, "r");
-    DBG_OUTPUT_PORT.println(file);    
-    while (file.available()) { 
-      DBG_OUTPUT_PORT.println("file is availabe");
-       char c = file.read();
-       DBG_OUTPUT_PORT.println(c);
-    }
-    DBG_OUTPUT_PORT.println("close file");
-    file.close();
-*/
-    
+    DBG_OUTPUT_PORT.println("File already exists");        
   }else{
     DBG_OUTPUT_PORT.println("open for writing");
     File file = FILESYSTEM.open(path, "w");
