@@ -70,7 +70,7 @@ const char* host = "esp32fs";
 WebServer server(80);
 
 
-long fileNumber = 0;
+int fileNumber = 0;
 
 
 
@@ -99,9 +99,20 @@ void setup(void) {
         String fileName = file.name();
         size_t fileSize = file.size();
         DBG_OUTPUT_PORT.printf("FS File: %s, size: %s\n", fileName.c_str(), formatBytes(fileSize).c_str());
+        
+        String xval = splitString(fileName, '_', 1);
+        String xval2 = splitString(xval, '.', 0);        
+        String nextFileNumberStr = String(xval2.c_str());
+        int nextFileNumber = nextFileNumberStr.toInt();        
+        if (nextFileNumber > fileNumber){          
+          fileNumber = nextFileNumber;
+        }        
         file = root.openNextFile();
     }
     DBG_OUTPUT_PORT.printf("\n");  
+    DBG_OUTPUT_PORT.printf("MAX FILE NUMBER =");  
+    DBG_OUTPUT_PORT.println(fileNumber);  
+    DBG_OUTPUT_PORT.printf("\n");      
   }else{
     DBG_OUTPUT_PORT.printf("ERROR: COULDNT START FILE SYSTEM\n");  
   }
@@ -124,10 +135,8 @@ void setup(void) {
   server.on("/list", HTTP_GET, handleFileList);
         
   //delete file
-  server.on("/edit", HTTP_DELETE, handleFileDelete);
+  server.on("/delete", HTTP_GET, handleFileDelete);
   
-  
-
   //called when the url is not defined here
   //use it to load content from FILESYSTEM
   server.onNotFound([]() {
@@ -150,14 +159,14 @@ void setup(void) {
   });
   server.begin();
   DBG_OUTPUT_PORT.println("HTTP server started");
+  ledDanceSequence();
 
 }
 
 void loop(void) {
 
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
-  //const unsigned long fiveMinutes = 5 * 60 * 1000UL;
-  const unsigned long fiveMinutes = 10000;
+  const unsigned long fiveMinutes = 5 * 60 * 1000UL;  
   static unsigned long lastSampleTime = 0 - fiveMinutes;
   unsigned long now = millis();
   if (now - lastSampleTime >= fiveMinutes)
@@ -379,7 +388,7 @@ void handleFileDelete() {
     return server.send(404, "text/plain", "FileNotFound");
   }
   FILESYSTEM.remove(path);
-  server.send(200, "text/plain", "");
+  server.send(200, "text/plain", "Deleted. Thank you.");
   path = String();
 }
 
@@ -418,3 +427,27 @@ void handleFileList() {
   server.send(200, "text/json", output);
 }
 /*###################################################### HANDLE SERVER FUNCTIONS ############################################################*/
+
+
+String splitString(String data, char separator, int index)
+{
+    int found = 0;
+    int strIndex[] = { 0, -1 };
+    int maxIndex = data.length() - 1;
+
+    for (int i = 0; i <= maxIndex && found <= index; i++) {
+        if (data.charAt(i) == separator || i == maxIndex) {
+            found++;
+            strIndex[0] = strIndex[1] + 1;
+            strIndex[1] = (i == maxIndex) ? i+1 : i;
+        }
+    }
+    
+    if(found > index){
+      String x = data.substring(strIndex[0], strIndex[1]);
+      DBG_OUTPUT_PORT.println(x);
+      return x;
+    }else{
+      return String("");  
+    }    
+}
