@@ -23,10 +23,13 @@
 #include <WebServer.h>
 #include <ESPmDNS.h>
 #include <WiFiAP.h>
+#include "FS.h"
+#include <SPI.h>
 
 #define FILESYSTEM SPIFFS
 // You only need to format the filesystem once
 #define FORMAT_FILESYSTEM false
+
 #if FILESYSTEM == FFat
 #include <FFat.h>
 #endif
@@ -35,15 +38,36 @@
 #include <SPIFFS.h>
 #endif
 
+#if FILESYSTEM == SD
+#include "SD.h"
+#endif
+
 
 #define DBG_OUTPUT_PORT Serial
-#define LED_BUILTIN 2  
 
-const char* ssid = "wifi-ssid";
-const char* password = "wifi-password";
+/* PIN for Built in Blue LED */
+#define LED_BUILTIN 2  
+/* FOR SD CARD 
+CS‎: ‎GPIO 5  
+MISO‎: ‎GPIO 19
+MOSI‎: ‎GPIO 23 
+CLK‎: ‎GPIO 18
+*/
+#define SD_CS 5
+
+
+
+/* SOUND READ ANALOG PIN - ADC1_CH6 */
+const int SOUND_ANALOG_READ = 34;
+float timeKeeper;
+float samplingTime = 500;
+float duration = 4000000;
+
+
+const char* ssid = "infrasonics";
+const char* password = "password";
 const char* host = "esp32fs";
 WebServer server(80);
-
 
 
 long randNumber = 5000;
@@ -61,12 +85,12 @@ void setup(void) {
   DBG_OUTPUT_PORT.begin(115200);
   DBG_OUTPUT_PORT.print("\n");
   DBG_OUTPUT_PORT.setDebugOutput(true);
-
-
-
-
   
-  if (FORMAT_FILESYSTEM) FILESYSTEM.format();
+  //Unless its inrernal flash, we dont have to 
+  //format here. For example SD cards can be
+  //formatted using a computer format
+  //if (FORMAT_FILESYSTEM) FILESYSTEM.format();
+  
   FILESYSTEM.begin();
   {
       File root = FILESYSTEM.open("/");
@@ -132,8 +156,8 @@ void setup(void) {
 void loop(void) {
 
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
-  //const unsigned long fiveMinutes = 5 * 60 * 1000UL;
-  const unsigned long fiveMinutes = 1000;
+  const unsigned long fiveMinutes = 5 * 60 * 1000UL;
+  //const unsigned long fiveMinutes = 1000;
   static unsigned long lastSampleTime = 0 - fiveMinutes;
   unsigned long now = millis();
   if (now - lastSampleTime >= fiveMinutes)
@@ -160,26 +184,53 @@ void loop(void) {
   
   String filePre = "sample_";
   String filePost = ".xml";
-  
-  //SETUP RANDOM READ FROM A ANALOG PIN
-  //randomSeed(analogRead(A0));  
-  //randNumber = random(5000, 4294967295);
-  
+    
   randNumber = randNumber + 1;
   String fileName = filePre + randNumber + filePost;
   DBG_OUTPUT_PORT.println("file name:");
   DBG_OUTPUT_PORT.println(fileName);
   
 
-  String csv_data = "124,123,364,387,938";
+  String csv_data = "";
+
+  //read the value in a forlopp with the delay required by the sample rate
+
+  float currentTime = micros();
+  float timeKeeper = micros();
+  int value = 0;
+  int counter = 0;
+  DBG_OUTPUT_PORT.println(duration/samplingTime);
+
+  while(1){
+    currentTime = micros();
+    if((currentTime - timeKeeper) > samplingTime) {
+      timeKeeper = micros();
+      value = analogRead(SOUND_ANALOG_READ);
+      csv_data = csv_data + "," + value;
+      counter = counter + 1;      
+    }
+    
+    DBG_OUTPUT_PORT.println(counter);
+    
+    if(counter >= duration/samplingTime){
+      DBG_OUTPUT_PORT.println(counter);
+      break;
+    }
+    
+  }
+  
 
   String XML_DATA = "<data>";
   XML_DATA.concat("<sample>");
   XML_DATA.concat(csv_data);
   XML_DATA.concat("</sample>");
   XML_DATA.concat("</data>");
+
+  DBG_OUTPUT_PORT.println(XML_DATA);
   
   createFile(fileName, XML_DATA);  
+  
+  
   ledOff();
   DBG_OUTPUT_PORT.println("end sample sound");
  }
