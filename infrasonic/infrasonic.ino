@@ -205,8 +205,8 @@ void loop(void) {
 
   float currentTime = micros();
   float timeKeeper = micros();
+  float durationTimeKeeper = micros();
   int value = 0;
-  int counter = 0;
   DBG_OUTPUT_PORT.println(duration/samplingTime);
   bool first = true;
   
@@ -223,19 +223,13 @@ void loop(void) {
         csv_data = csv_data + "," + value;
         csv_time = csv_time+ "," + timeKeeper;        
       }
-      counter = counter + 1;      
     }
-    
-    //DBG_OUTPUT_PORT.println(counter);
-    
-    if(counter >= duration/samplingTime){
-      //DBG_OUTPUT_PORT.println(counter);
+    if(currentTime-durationTimeKeeper >= duration){
       break;
     }
     
   }
   
-
     String json = "{";
     json += "\"data\": [" + csv_data+"]";
     json += ", \"time\": [" + csv_time+"]";
