@@ -10,7 +10,7 @@ When you try to upload a new sketch to your ESP32 and it fails to connect to you
 - Press the “Upload” button in the Arduino IDE to upload a new sketch
 - After you see the  “Connecting….” message in your Arduino IDE, release the finger from the “BOOT” button
 
-## First Run
+## First Run- SPIFFS Flash Format
 If you are using a new ESP32 and planning to use internal flash for storage, then you need to format it once. You can comment it for the second upload onwards.
 
 ```
