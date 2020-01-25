@@ -14,7 +14,7 @@
 
   Copyright (c) 2015 Hristo Gochkov - Example
   Copyright (c) 2020 Thejesh GN - Added sampling, Intial Sequence, File Write, LED on and Off
-  Copyright (c) 2020 Romit
+  Copyright (c) 2020 Romit Raj
   
 
 */
@@ -162,7 +162,6 @@ void setup(void) {
 }
 
 void loop(void) {
-
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
   const unsigned long fiveMinutes = 5 * 60 * 1000UL;  
   static unsigned long lastSampleTime = 0 - fiveMinutes;
@@ -177,6 +176,7 @@ void loop(void) {
 
   //HANDLE HTTP REQUESTS
   server.handleClient();
+  
 }
 
 /*###################################################### SAMPLE FUNCTION ############################################################*/
@@ -185,6 +185,8 @@ void loop(void) {
  * 
  */
  void sampleSound(){
+  
+  
   DBG_OUTPUT_PORT.println("start sample sound");
   ledOn();
 
@@ -196,7 +198,6 @@ void loop(void) {
   String fileName = filePre + fileNumber + filePost;
   DBG_OUTPUT_PORT.println("file name:");
   DBG_OUTPUT_PORT.println(fileName);
-  
 
   String csv_data = "";
   String csv_time = "";
@@ -209,27 +210,35 @@ void loop(void) {
   int value = 0;
   DBG_OUTPUT_PORT.println(duration/samplingTime);
   bool first = true;
-  
-  while(1){
-    currentTime = micros();
-    if((currentTime - timeKeeper) > samplingTime) {
-      timeKeeper = micros();
-      value = analogRead(SOUND_ANALOG_READ);
-      if(first){
-        csv_data = value;
-        csv_time = timeKeeper;
-        first = false;
-      }else{
-        csv_data = csv_data + "," + value;
-        csv_time = csv_time+ "," + timeKeeper;        
+
+  File file = FILESYSTEM.open(fileName, FILE_WRITE);
+  if(file) {
+    while(1){
+      currentTime = micros();
+      if((currentTime - timeKeeper) > samplingTime) {
+        timeKeeper = micros();
+        value = int(analogRead(SOUND_ANALOG_READ));
+        DBG_OUTPUT_PORT.println(value);
+        file.print(value);
+        file.print(",");
+        /*
+        if(first){
+          csv_data = value;
+          csv_time = timeKeeper;
+          first = false;
+        }else{
+          csv_data = csv_data + "," + value;
+          csv_time = csv_time+ "," + timeKeeper;        
+        }
+        */
+      }
+      if(currentTime-durationTimeKeeper >= duration){
+        break;
       }
     }
-    if(currentTime-durationTimeKeeper >= duration){
-      break;
-    }
-    
+    file.close();
   }
-  
+  /*
     String json = "{";
     json += "\"data\": [" + csv_data+"]";
     json += ", \"time\": [" + csv_time+"]";
@@ -239,10 +248,11 @@ void loop(void) {
   //DBG_OUTPUT_PORT.println(json);
   
   createFile(fileName, json);  
-  
+  */
   
   ledOff();
   DBG_OUTPUT_PORT.println("end sample sound");
+  
  }
 
 
