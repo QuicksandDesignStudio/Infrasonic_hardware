@@ -78,6 +78,14 @@ void setup(void) {
   //INIT ONBOAD LED and START THE INTIAL SEQUENCE
   pinMode(LED_BUILTIN, OUTPUT);
   ledDanceSequence();
+
+  //INIT ADC
+  pinMode(SOUND_ANALOG_READ, INPUT);    
+  adcAttachPin(SOUND_ANALOG_READ);      
+  adcStart(SOUND_ANALOG_READ);
+  analogReadResolution(11); // Default of 12 is not very linear. Recommended to use 10 or 11 depending on needed resolution.
+  analogSetAttenuation(ADC_6db);  // Default is 11db which is very noisy. Recommended to use 2.5 or 6.
+  
   
   DBG_OUTPUT_PORT.begin(115200);
   DBG_OUTPUT_PORT.print("\n");
@@ -169,6 +177,10 @@ void loop(void) {
   if (now - lastSampleTime >= fiveMinutes)
   {
     lastSampleTime += fiveMinutes;
+    
+    //disconnect WiFi when sampling
+    WiFi.softAPdisconnect(true);
+    
     sampleSound();
   }  
 
@@ -215,6 +227,12 @@ void loop(void) {
   if(file) {
     while(1){
       currentTime = micros();
+      value = int(analogRead(SOUND_ANALOG_READ));
+      DBG_OUTPUT_PORT.println(value);
+      file.print(value);
+      file.print(",");
+      //we should sample at maximum possible rate
+      /*
       if((currentTime - timeKeeper) > samplingTime) {
         timeKeeper = micros();
         value = int(analogRead(SOUND_ANALOG_READ));
@@ -230,9 +248,13 @@ void loop(void) {
           csv_data = csv_data + "," + value;
           csv_time = csv_time+ "," + timeKeeper;        
         }
-        */
-      }
+        
+      }*/
       if(currentTime-durationTimeKeeper >= duration){
+        
+        //reconnect wifi after sampling
+        WiFi.softAP(ssid, password);
+        
         break;
       }
     }
@@ -368,6 +390,7 @@ bool handleFileRead(String path) {
     if (exists(pathWithGz)) {
       path += ".gz";
     }
+    DBG_OUTPUT_PORT.println(path);
     File file = FILESYSTEM.open(path, "r");
     server.streamFile(file, contentType);
     file.close();
@@ -389,6 +412,7 @@ void handleFileDelete() {
   if (!exists(path)) {
     return server.send(404, "text/plain", "FileNotFound");
   }
+ 
   FILESYSTEM.remove(path);
   server.send(200, "text/plain", "Deleted. Thank you.");
   path = String();
