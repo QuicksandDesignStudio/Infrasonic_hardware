@@ -25,6 +25,7 @@
 #include <WiFiAP.h>
 #include "FS.h"
 #include <SPI.h>
+#include "driver/adc.h"
 
 #define FILESYSTEM SPIFFS
 // You only need to format the filesystem once
@@ -56,13 +57,18 @@ CLK‎: ‎GPIO 18
 #define SD_CS 5
 
 
+/*Button Pin*/
+const unsigned int BUTTON = 25;
+const unsigned int GREEN_LED = 15;
+const unsigned int RED_LED = 13;
+bool buttonPressed = false;
 
 /* SOUND READ ANALOG PIN - ADC1_CH6 */
 const int SOUND_ANALOG_READ = 34;
-float timeKeeper;
-float samplingTime = 500;
-float duration = 4000000;
+const float durationStore = 5000000;
+float duration = durationStore;
 int fileNumber = 0;
+bool sampling = false;
 
 
 const char* ssid = "infrasonics";
@@ -70,13 +76,17 @@ const char* password = "password";
 const char* host = "esp32fs";
 WebServer server(80);
 
-
-
-
+void IRAM_ATTR ISRbuttonPressed() {
+  if(buttonPressed == false) {
+    buttonPressed = true;
+    sampling = true;
+  } 
+}
 
 void setup(void) {    
   //INIT ONBOAD LED and START THE INTIAL SEQUENCE
   pinMode(LED_BUILTIN, OUTPUT);
+  
   ledDanceSequence();
 
   //INIT ADC
@@ -149,8 +159,6 @@ void setup(void) {
     }
   });
 
-  
-  
   //THIS IS FOR DEBUG
   server.on("/debug", HTTP_GET, []() {
     String json = "{";
@@ -167,9 +175,57 @@ void setup(void) {
 
   //led dance for the end of setup
   ledDanceSequence();
+
+  //attach the button interrupts
+  pinMode(BUTTON, INPUT_PULLUP);
+  attachInterrupt(BUTTON, ISRbuttonPressed, FALLING);
+
+  //led pins setup
+  pinMode(GREEN_LED, OUTPUT);
+  pinMode(RED_LED, OUTPUT);
+  //turn on green - representing wifi
+  digitalWrite(GREEN_LED, HIGH);
 }
 
 void loop(void) {
+
+  //sample sounds when button pressed
+  if(sampling) {
+
+    //detach the button interrupt
+    //detachInterrupt(BUTTON);  
+
+    //wifi off
+    digitalWrite(GREEN_LED, LOW);
+    WiFi.softAPdisconnect(true);
+    
+    //delay just in case
+    delay(1000);
+ 
+    //sampling on
+    digitalWrite(RED_LED, HIGH);
+
+    //re-attach the interrupt
+    //attachInterrupt(BUTTON, ISRbuttonPressedHigh, RISING);
+
+    //start sampling loop
+    sampleSound();
+
+    //sampling complete
+    sampling = false;
+
+    //turn button back on
+    buttonPressed = false;
+
+    //make sure duration value is correct
+    duration = durationStore;
+  }
+
+  //HANDLE HTTP REQUESTS
+  server.handleClient();
+
+  //sample sounds every 5 minutes
+  /*
   //SAMPLE SOUND EVERY FIVE MINUTES. LATER WE CAN ADD INTERRUPT BASED
   const unsigned long fiveMinutes = 5 * 60 * 1000UL;  
   static unsigned long lastSampleTime = 0 - fiveMinutes;
@@ -183,11 +239,7 @@ void loop(void) {
     
     sampleSound();
   }  
-
-
-
-  //HANDLE HTTP REQUESTS
-  server.handleClient();
+  */
   
 }
 
@@ -201,7 +253,6 @@ void loop(void) {
   
   DBG_OUTPUT_PORT.println("start sample sound");
   ledOn();
-
   
   String filePre = "/sample_";
   String filePost = ".js";
@@ -214,67 +265,51 @@ void loop(void) {
   String csv_data = "";
   String csv_time = "";
 
-  //read the value in a forlopp with the delay required by the sample rate
-
-  float currentTime = micros();
-  float timeKeeper = micros();
-  float durationTimeKeeper = micros();
-  int value = 0;
-  DBG_OUTPUT_PORT.println(duration/samplingTime);
-  bool first = true;
-
+  //open the file and write out the json headers
   File file = FILESYSTEM.open(fileName, FILE_WRITE);
+
   if(file) {
-    while(1){
-      currentTime = micros();
-      value = int(analogRead(SOUND_ANALOG_READ));
-      DBG_OUTPUT_PORT.println(value);
+    //get the current elapsed time in micros
+    float timeKeeper = micros();  
+    String json = "{";
+    json += "\"start\": [" + String(timeKeeper) +"]";
+    json += ", \"data\": [";
+    file.print(json);
+    //setup the sample loop
+    while(1) {
+      float currentTime = micros();
+      
+      //sample adc and write to file
+      int value = int(analogRead(SOUND_ANALOG_READ));
       file.print(value);
-      file.print(",");
-      //we should sample at maximum possible rate
-      /*
-      if((currentTime - timeKeeper) > samplingTime) {
-        timeKeeper = micros();
-        value = int(analogRead(SOUND_ANALOG_READ));
-        DBG_OUTPUT_PORT.println(value);
-        file.print(value);
-        file.print(",");
-        /*
-        if(first){
-          csv_data = value;
-          csv_time = timeKeeper;
-          first = false;
-        }else{
-          csv_data = csv_data + "," + value;
-          csv_time = csv_time+ "," + timeKeeper;        
-        }
-        
-      }*/
-      if(currentTime-durationTimeKeeper >= duration){
-        
-        //reconnect wifi after sampling
-        WiFi.softAP(ssid, password);
-        
+      DBG_OUTPUT_PORT.println(value);
+
+      //check if it has been recording for more than the max number of seconds 
+      if(currentTime-timeKeeper >= duration){
         break;
       }
+      else {
+        //no comma after the last value
+        file.print(",");  
+      }
     }
+    float currentTime = micros();
+    //end the json entry
+    json = "], \"end\": [" + String(currentTime) + "]}";
+    file.print(json);
     file.close();
   }
-  /*
-    String json = "{";
-    json += "\"data\": [" + csv_data+"]";
-    json += ", \"time\": [" + csv_time+"]";
-    json += "}";
-    
-    
-  //DBG_OUTPUT_PORT.println(json);
   
-  createFile(fileName, json);  
-  */
-  
-  ledOff();
   DBG_OUTPUT_PORT.println("end sample sound");
+
+  //turn off sampling light
+  digitalWrite(RED_LED, LOW);
   
+  //turn the wifi back on
+  WiFi.softAP(ssid, password);
+
+  //turn on wifi light
+  digitalWrite(GREEN_LED, HIGH);
  }
 
 
